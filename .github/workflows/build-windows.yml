@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/build-windows.yml'
       - 'packed/**'
+      - 'packed_v5/**'
       - 'patches/**'
 permissions:
   contents: read
@@ -47,17 +48,33 @@ jobs:
       - name: Enable compact Admin / Customer V4
         shell: pwsh
         run: python patches/enable_compact_v4.py
+      - name: Unpack and verify V5 dedicated viewer and reconnect transport
+        shell: pwsh
+        run: |
+          @'
+          import base64, hashlib, io, pathlib, tarfile
+          parts = pathlib.Path('packed_v5')
+          b64 = ''.join(f.read_text(encoding='ascii').strip() for f in sorted(parts.glob('p*.txt')))
+          raw = base64.b64decode(b64, validate=True)
+          assert hashlib.sha256(raw).hexdigest() == '78891f18ca5fd18c4987086fd040411badbfd82863f7fc227619f8b88794e447', 'V5 SHA-256 mismatch'
+          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz') as tf:
+              for m in tf.getmembers():
+                  dest=pathlib.PurePosixPath(m.name)
+                  assert dest.parts[0]=='desktop' and not dest.is_absolute() and '..' not in dest.parts
+              tf.extractall(path='.',filter='data')
+          print('Verified V5 Windows code unpacked')
+          '@ | python -
       - name: Check Python syntax
         shell: pwsh
-        run: python -m py_compile desktop/admin.py desktop/admin_compact.py desktop/customer.py desktop/customer_oneclick.py desktop/customer_compact.py desktop/common.py
+        run: python -m py_compile desktop/admin.py desktop/customer.py desktop/common.py
       - name: Build Admin EXE
         shell: pwsh
         run: |
-          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Admin --paths desktop --collect-submodules PIL desktop/admin_compact.py
+          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Admin --paths desktop --icon desktop/ILAINA-Viewer.ico --collect-submodules PIL desktop/admin.py
       - name: Build Customer EXE
         shell: pwsh
         run: |
-          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Customer --paths desktop --collect-submodules mss --collect-submodules pynput desktop/customer_compact.py
+          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Customer --paths desktop --collect-submodules mss --icon desktop/ILAINA-Viewer.ico --collect-submodules pynput desktop/customer.py
       - name: Zip separate Windows apps
         shell: pwsh
         run: |
@@ -70,7 +87,7 @@ jobs:
           Compress-Archive "release/customer/*" "release/ILAINA-Viewer-Customer.zip" -Force
       - uses: actions/upload-artifact@v4
         with:
-          name: ILAINA-Viewer-Windows-EXEs
+          name: ILAINA-Viewer-V5-Windows-EXEs
           path: |
             release/ILAINA-Viewer-Admin.zip
             release/ILAINA-Viewer-Customer.zip
