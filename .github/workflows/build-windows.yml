@@ -67,6 +67,18 @@ jobs:
       - name: Check Python syntax
         shell: pwsh
         run: python -m py_compile desktop/admin.py desktop/customer.py desktop/common.py
+      - name: Generate custom ILAINA Viewer ICO
+        shell: pwsh
+        run: |
+          @'
+          from PIL import Image, ImageDraw, ImageFont
+          image=Image.new('RGBA',(256,256),'#0B1220')
+          draw=ImageDraw.Draw(image)
+          draw.rounded_rectangle((14,14,242,242),radius=48,fill='#141F31',outline='#30E6B0',width=8)
+          draw.polygon([(128,47),(202,128),(128,209),(54,128)],outline='#30E6B0',width=12)
+          draw.ellipse((112,112,144,144),fill='#30E6B0')
+          image.save('desktop/ILAINA-Viewer.ico',sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
+          '@ | python -
       - name: Build Admin EXE
         shell: pwsh
         run: |
