@@ -1,0 +1,71 @@
+name: Build ILAINA-Viewer Windows EXEs
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-windows.yml'
+      - 'packed/**'
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unpack and verify ILAINA-Viewer source
+        shell: pwsh
+        run: |
+          @'
+          import base64, hashlib, io, pathlib, tarfile
+          base = pathlib.Path('packed')
+          encoded = ''.join(p.read_text(encoding='utf-8').strip() for p in sorted(base.glob('p*.txt')))
+          archive = base64.b64decode(encoded, validate=True)
+          expected = '4e6234d1bd224aec5c0e17d2cf11714e744c98cecc2cd7014a74d3447484346b'
+          assert hashlib.sha256(archive).hexdigest() == expected, 'Source archive integrity check failed'
+          with tarfile.open(fileobj=io.BytesIO(archive), mode='r:gz') as tf:
+              for m in tf.getmembers():
+                  dest = pathlib.PurePosixPath(m.name)
+                  assert dest.parts[0] == 'desktop' and not dest.is_absolute() and '..' not in dest.parts
+              tf.extractall(path='.', filter='data')
+          print('Verified source unpacked')
+          '@ | python -
+      - name: Install Python dependencies and PyInstaller
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r desktop/requirements.txt "pyinstaller>=6.10,<7"
+      - name: Check Python syntax
+        shell: pwsh
+        run: python -m py_compile desktop/admin.py desktop/customer.py desktop/common.py
+      - name: Build Admin EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Admin --paths desktop --collect-submodules PIL desktop/admin.py
+      - name: Build Customer EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Customer --paths desktop --collect-submodules mss --collect-submodules pynput desktop/customer.py
+      - name: Zip separate Windows apps
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "release/admin","release/customer" | Out-Null
+          Copy-Item "dist/ILAINA-Viewer-Admin.exe" "release/admin/"
+          Copy-Item "desktop/config-admin.json" "release/admin/"
+          Copy-Item "dist/ILAINA-Viewer-Customer.exe" "release/customer/"
+          Copy-Item "desktop/config-customer.json" "release/customer/"
+          Compress-Archive "release/admin/*" "release/ILAINA-Viewer-Admin.zip" -Force
+          Compress-Archive "release/customer/*" "release/ILAINA-Viewer-Customer.zip" -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ILAINA-Viewer-Windows-EXEs
+          path: |
+            release/ILAINA-Viewer-Admin.zip
+            release/ILAINA-Viewer-Customer.zip
+          if-no-files-found: error
+          retention-days: 30
