@@ -44,17 +44,20 @@ jobs:
       - name: Enable one-click Customer without login
         shell: pwsh
         run: python patches/enable_guest.py
+      - name: Enable compact Admin / Customer V4
+        shell: pwsh
+        run: python patches/enable_compact_v4.py
       - name: Check Python syntax
         shell: pwsh
-        run: python -m py_compile desktop/admin.py desktop/customer.py desktop/customer_oneclick.py desktop/common.py
+        run: python -m py_compile desktop/admin.py desktop/admin_compact.py desktop/customer.py desktop/customer_oneclick.py desktop/customer_compact.py desktop/common.py
       - name: Build Admin EXE
         shell: pwsh
         run: |
-          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Admin --paths desktop --collect-submodules PIL desktop/admin.py
+          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Admin --paths desktop --collect-submodules PIL desktop/admin_compact.py
       - name: Build Customer EXE
         shell: pwsh
         run: |
-          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Customer --paths desktop --collect-submodules mss --collect-submodules pynput desktop/customer_oneclick.py
+          python -m PyInstaller --clean --noconfirm --onefile --windowed --name ILAINA-Viewer-Customer --paths desktop --collect-submodules mss --collect-submodules pynput desktop/customer_compact.py
       - name: Zip separate Windows apps
         shell: pwsh
         run: |
